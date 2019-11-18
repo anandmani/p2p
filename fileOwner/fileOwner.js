@@ -1,5 +1,5 @@
 const fs = require('fs');
-const io = require("socket.io")();
+const server = require("socket.io")();
 
 const writeChunk = (chunkName, chunkData) =>  
     new Promise((resolve, reject) => {
@@ -37,11 +37,47 @@ const chunkFile = async () => {
     return numChunks
 }
 
+class ChunksHelper{
+    constructor(numChunks){
+        const numPeers = 5
+        this.chunkNames = Array.from(Array(numChunks).keys()).map(i => `${i}.blob`)
+        this.clusterSize = Math.ceil(this.chunkNames.length / numPeers)
+    }
+    getChunkNames(){
+        return this.chunkNames.splice(0, this.clusterSize)
+    }
+}
+
+const sendChunksToPeer = async (socketId, chunkHelper) => {
+    let chunkNames = chunkHelper.getChunkNames()
+    console.log(`Sending ${chunkNames} in socket ${socketId}`)
+    let promiseArray = chunkNames.map((chunkName) => {
+        return new Promise((resolve, reject) => {
+            fs.readFile(chunkName, (err, data) => {
+                //handle err
+                resolve(data)
+            })
+        })
+    })
+    let chunkBuffers = await Promise.all(promiseArray)
+    socket.emit('upload', chunkNames, chunkBuffers, (err1) => {
+        //handle err
+        console.log("Upload successful")
+    })
+}
+
 const main = async () => {
     const numChunks = await chunkFile()
+    const chunkHelper = new ChunksHelper(numChunks)
     const [port] = process.argv.slice(2)
-    io.listen(port);
-    console.log(`File owner running on port: ${port}`)                 
+    server.listen(port);
+    console.log(`File owner running on port: ${port}`)
+    
+    server.on("connection", async (socket) => {
+        console.log(`Peer connected [id=${socket.id}]`);
+        sendChunksToPeer(socket.id, chunkHelper)
+    })    
+
 }
 main()
 

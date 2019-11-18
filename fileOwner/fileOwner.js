@@ -5,7 +5,7 @@ const writeChunk = (chunkName, chunkData) =>
     new Promise((resolve, reject) => {
         fs.writeFile(chunkName, chunkData, (err) => {
             //handle err
-            Promise.resolve()
+            resolve()
         })
     })
 
@@ -24,7 +24,8 @@ const chunkFile = async () => {
             //hanlde err
             const chunkSize = 100000
             let chunkPromises = []
-            for(let i = 0; i < Math.ceil(fileSize/chunkSize); i++){
+            let i
+            for(i = 0; i < Math.ceil(fileSize/chunkSize); i++){
                 let chunkData = data.slice(i * chunkSize, i * chunkSize + chunkSize)
                 chunkPromises.push(writeChunk(`${i}.blob`, chunkData))
             }
@@ -38,9 +39,9 @@ const chunkFile = async () => {
 
 const main = async () => {
     const numChunks = await chunkFile()
-    // const [port] = process.argv.slice(2)
-    // io.listen(port);
-    // console.log(`File owner running on port: ${port}`)                 
+    const [port] = process.argv.slice(2)
+    io.listen(port);
+    console.log(`File owner running on port: ${port}`)                 
 }
 main()
 

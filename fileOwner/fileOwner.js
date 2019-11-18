@@ -39,7 +39,7 @@ const chunkFile = async () => {
 
 class ChunksHelper{
     constructor(numChunks){
-        const numPeers = 5
+        const numPeers = 2
         this.chunkNames = Array.from(Array(numChunks).keys()).map(i => `${i}.blob`)
         this.clusterSize = Math.ceil(this.chunkNames.length / numPeers)
     }
@@ -48,9 +48,9 @@ class ChunksHelper{
     }
 }
 
-const sendChunksToPeer = async (socketId, chunkHelper) => {
+const sendChunksToPeer = async (socket, chunkHelper) => {
     let chunkNames = chunkHelper.getChunkNames()
-    console.log(`Sending ${chunkNames} in socket ${socketId}`)
+    console.log(`Sending ${chunkNames} in socket ${socket.id}`)
     let promiseArray = chunkNames.map((chunkName) => {
         return new Promise((resolve, reject) => {
             fs.readFile(chunkName, (err, data) => {
@@ -75,28 +75,8 @@ const main = async () => {
     
     server.on("connection", async (socket) => {
         console.log(`Peer connected [id=${socket.id}]`);
-        sendChunksToPeer(socket.id, chunkHelper)
+        sendChunksToPeer(socket, chunkHelper)
     })    
 
 }
 main()
-
-/*
-//Merge chunks:
-let promiseArray = []
-for(let i = 1; i <= 40; i++){
-    let promise = new Promise((resolve, reject) => {
-        fs.readFile(`${i}.blob`, (err, data) => {
-            //handle err
-            resolve(data)
-        })
-    })
-    promiseArray.push(promise)
-}
-Promise.all(promiseArray).then((bufferArray) => {
-    let data = Buffer.concat(bufferArray)
-    fs.writeFile("reconstructed.pdf", data, (err) => {
-        //handle err
-    })
-})
-*/

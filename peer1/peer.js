@@ -81,7 +81,7 @@ downloadPeerSocket.on('connect', async function(){
     }
     Promise.all(promiseArray).then((bufferArray) => {
         let data = Buffer.concat(bufferArray)
-        fs.writeFile("reconstructed.pdf", data, (err) => {
+        fs.writeFile("test.pdf", data, (err) => {
             //handle err
         })
     })

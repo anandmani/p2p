@@ -2,6 +2,9 @@ const fs = require('fs');
 const server = require("socket.io")();
 const CHUNK_SIZE = 100000
 const NUM_PEERS = 5
+const [MY_PORT] = process.argv.slice(2)
+
+const log2 = (str) => console.log(`[${MY_PORT}]: ${str}`)
 
 const writeChunk = (chunkName, chunkData) =>  
     new Promise((resolve, reject) => {
@@ -50,7 +53,7 @@ class ChunksHelper{
 
 const sendChunksToPeer = async (socket, numChunks, chunkHelper) => {
     let chunkNames = chunkHelper.getChunkNames()
-    console.log(`Sending ${chunkNames} in socket ${socket.id}`)
+    log2(`Sending ${chunkNames} in socket ${socket.id}`)
     let promiseArray = chunkNames.map((chunkName) => {
         return new Promise((resolve, reject) => {
             fs.readFile(chunkName, (err, data) => {
@@ -62,19 +65,19 @@ const sendChunksToPeer = async (socket, numChunks, chunkHelper) => {
     let chunkBuffers = await Promise.all(promiseArray)
     socket.emit('upload', numChunks, chunkNames, chunkBuffers, (err1) => {
         //handle err
-        console.log("Upload successful")
+        log2("Upload successful")
     })
 }
 
 const main = async () => {
     const numChunks = await chunkFile()
     const chunkHelper = new ChunksHelper(numChunks)
-    const [port] = process.argv.slice(2)
-    server.listen(port);
-    console.log(`File owner running on port: ${port}`)
+    
+    server.listen(MY_PORT);
+    log2(`File owner running on port: ${MY_PORT}`)
     
     server.on("connection", async (socket) => {
-        console.log(`Peer connected [id=${socket.id}]`);
+        log2(`Peer connected [id=${socket.id}]`);
         sendChunksToPeer(socket, numChunks, chunkHelper)
     })    
 

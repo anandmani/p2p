@@ -1,25 +1,27 @@
 const client = require('socket.io-client');
 const server = require("socket.io")();
 const fs = require('fs');
-let NUM_CHUNKS = Number.MAX_SAFE_INTEGER
 
-const [fileOwnerPort, myPort, downloadPeerPort] = process.argv.slice(2)
+let NUM_CHUNKS = Number.MAX_SAFE_INTEGER
+const [FILE_OWNER_PORT, MY_PORT, DOWNLOAD_PEER_PORT] = process.argv.slice(2)
 const chunkList = []
 
-const fileOwnerSocket = client.connect(`http://localhost:${fileOwnerPort}`)
+const log2 = (str) => console.log(`[${MY_PORT}]: ${str}`)
+
+const fileOwnerSocket = client.connect(`http://localhost:${FILE_OWNER_PORT}`)
 fileOwnerSocket.on('error', function(error){
     console.error(error)
     process.exit()
 });
 fileOwnerSocket.on('connect_error', function(error){
-    console.error(`Unable to connect to fileOwner on port ${fileOwnerPort}`)
+    console.error(`Unable to connect to fileOwner on port ${FILE_OWNER_PORT}`)
 })
 fileOwnerSocket.on('connect', async function(){
-    console.log(`Connected to fileOwner running on port ${fileOwnerPort}`)
+    log2(`Connected to fileOwner running on port ${FILE_OWNER_PORT}`)
 })
 fileOwnerSocket.on('upload', async (numChunks, chunkNames, chunkBuffers, cb) => {
     NUM_CHUNKS = numChunks
-    console.log(`Receving files ${chunkNames.toString()} from fileOwner`)
+    log2(`Receving files ${chunkNames.toString()} from [FILE OWNER]`)
     let promiseArray = chunkNames.map((chunkName, index) => {
         return new Promise((resolve, reject) => {
             fs.writeFile(chunkName, chunkBuffers[index], (err) => {
@@ -34,19 +36,20 @@ fileOwnerSocket.on('upload', async (numChunks, chunkNames, chunkBuffers, cb) => 
 })
 
 
-const downloadPeerSocket = client.connect(`http://localhost:${downloadPeerPort}`)
+const downloadPeerSocket = client.connect(`http://localhost:${DOWNLOAD_PEER_PORT}`)
 downloadPeerSocket.on('error', function(error){
     console.error(error)
     process.exit()
 });
 downloadPeerSocket.on('connect_error', function(error){
-    console.error(`Unable to connect to downloadPeer on port ${downloadPeerPort}`)
+    console.error(`Unable to connect to downloadPeer on port ${DOWNLOAD_PEER_PORT}`)
 })
 downloadPeerSocket.on('connect', async function(){
-    console.log(`Connected to downloadPeer running on port ${downloadPeerPort}`)
+    log2(`Connected to downloadPeer running on port ${DOWNLOAD_PEER_PORT}`)
     while(chunkList.length < NUM_CHUNKS){
         let getChunkListPromise = new Promise((resolve, reject) => {
             downloadPeerSocket.emit('get_chunk_list', function(peerChunkList){
+                // log2(`Receving CHUNK_LIST from [DOWNLOAD PEER]`)
                 resolve(peerChunkList.filter(chunk => chunkList.indexOf(chunk) == -1))
             })
         })
@@ -57,6 +60,7 @@ downloadPeerSocket.on('connect', async function(){
         let getChunksPromise = new Promise((resolve, reject) => {
             downloadPeerSocket.emit('get_chunks', newChunkNames, async (buffers) => {
                 //handle err
+                log2(`Receving FILES ${newChunkNames.toString()} from [DOWNLOAD PEER]`)
                 resolve(buffers)
             })
         })
@@ -72,8 +76,8 @@ downloadPeerSocket.on('connect', async function(){
         })
         await Promise.all(promiseArray)
     }
-    console.log(chunkList)
-    console.log("Received all chunks. Reconstructing source file")
+    // log2(chunkList)
+    log2("========================\nReceived all chunks. Reconstructing source file \n========================")
     let promiseArray = []
     for(let i = 0; i < 40; i++){
         let promise = new Promise((resolve, reject) => {
@@ -94,16 +98,16 @@ downloadPeerSocket.on('connect', async function(){
 
 
 //Start server
-server.listen(myPort);
-console.log(`Listening on port ${myPort}`)
+server.listen(MY_PORT);
+log2(`Listening on port ${MY_PORT}`)
 server.on("connection", async (socket) => {
-    console.log(`Upload neighbour connected [id=${socket.id}]`);
+    log2(`Upload neighbour connected [id=${socket.id}]`);
     socket.on('get_chunk_list', (cb) => {
-        // console.log("Sending chunk list to upload neighbour")
+        // log2("Sending CHUNK_LIST to [UPLOAD NEIGHBOUR]")
         cb(chunkList)
     })
     socket.on('get_chunks', async (chunkNames, cb) => {
-        console.log(`Sending ${chunkNames} to upload neighbour`)
+        log2(`Sending ${chunkNames} to [UPLOAD NEIGHBOUR]`)
         let promiseArray = chunkNames.map((chunkName) => {
             return new Promise((resolve, reject) => {
                 fs.readFile(chunkName, (err, data) => {

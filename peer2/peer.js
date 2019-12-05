@@ -1,6 +1,7 @@
 const client = require('socket.io-client');
 const server = require("socket.io")();
 const fs = require('fs');
+let NUM_CHUNKS = Number.MAX_SAFE_INTEGER
 
 const [fileOwnerPort, myPort, downloadPeerPort] = process.argv.slice(2)
 const chunkList = []
@@ -16,7 +17,8 @@ fileOwnerSocket.on('connect_error', function(error){
 fileOwnerSocket.on('connect', async function(){
     console.log(`Connected to fileOwner running on port ${fileOwnerPort}`)
 })
-fileOwnerSocket.on('upload', async (chunkNames, chunkBuffers, cb) => {
+fileOwnerSocket.on('upload', async (numChunks, chunkNames, chunkBuffers, cb) => {
+    NUM_CHUNKS = numChunks
     console.log(`Receving files ${chunkNames.toString()} from fileOwner`)
     let promiseArray = chunkNames.map((chunkName, index) => {
         return new Promise((resolve, reject) => {
@@ -42,13 +44,16 @@ downloadPeerSocket.on('connect_error', function(error){
 })
 downloadPeerSocket.on('connect', async function(){
     console.log(`Connected to downloadPeer running on port ${downloadPeerPort}`)
-    while(chunkList.length < 40){
+    while(chunkList.length < NUM_CHUNKS){
         let getChunkListPromise = new Promise((resolve, reject) => {
             downloadPeerSocket.emit('get_chunk_list', function(peerChunkList){
                 resolve(peerChunkList.filter(chunk => chunkList.indexOf(chunk) == -1))
             })
         })
         let newChunkNames = await getChunkListPromise
+        if(!newChunkNames.length){
+            continue;
+        }
         let getChunksPromise = new Promise((resolve, reject) => {
             downloadPeerSocket.emit('get_chunks', newChunkNames, async (buffers) => {
                 //handle err
@@ -94,7 +99,7 @@ console.log(`Listening on port ${myPort}`)
 server.on("connection", async (socket) => {
     console.log(`Upload neighbour connected [id=${socket.id}]`);
     socket.on('get_chunk_list', (cb) => {
-        console.log("Sending chunk list to upload neighbour")
+        // console.log("Sending chunk list to upload neighbour")
         cb(chunkList)
     })
     socket.on('get_chunks', async (chunkNames, cb) => {

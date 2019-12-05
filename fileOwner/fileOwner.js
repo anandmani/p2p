@@ -1,5 +1,7 @@
 const fs = require('fs');
 const server = require("socket.io")();
+const CHUNK_SIZE = 100000
+const NUM_PEERS = 5
 
 const writeChunk = (chunkName, chunkData) =>  
     new Promise((resolve, reject) => {
@@ -22,11 +24,10 @@ const chunkFile = async () => {
     let numChunks = await new Promise((resolve, reject) => {
         fs.readFile(filename, async (err, data) => {
             //hanlde err
-            const chunkSize = 100000
             let chunkPromises = []
             let i
-            for(i = 0; i < Math.ceil(fileSize/chunkSize); i++){
-                let chunkData = data.slice(i * chunkSize, i * chunkSize + chunkSize)
+            for(i = 0; i < Math.ceil(fileSize/CHUNK_SIZE); i++){
+                let chunkData = data.slice(i * CHUNK_SIZE, i * CHUNK_SIZE + CHUNK_SIZE)
                 chunkPromises.push(writeChunk(`${i}.blob`, chunkData))
             }
             await Promise.all(chunkPromises)
@@ -39,16 +40,15 @@ const chunkFile = async () => {
 
 class ChunksHelper{
     constructor(numChunks){
-        const numPeers = 2
         this.chunkNames = Array.from(Array(numChunks).keys()).map(i => `${i}.blob`)
-        this.clusterSize = Math.ceil(this.chunkNames.length / numPeers)
+        this.clusterSize = Math.ceil(this.chunkNames.length / NUM_PEERS)
     }
     getChunkNames(){
         return this.chunkNames.splice(0, this.clusterSize)
     }
 }
 
-const sendChunksToPeer = async (socket, chunkHelper) => {
+const sendChunksToPeer = async (socket, numChunks, chunkHelper) => {
     let chunkNames = chunkHelper.getChunkNames()
     console.log(`Sending ${chunkNames} in socket ${socket.id}`)
     let promiseArray = chunkNames.map((chunkName) => {
@@ -60,7 +60,7 @@ const sendChunksToPeer = async (socket, chunkHelper) => {
         })
     })
     let chunkBuffers = await Promise.all(promiseArray)
-    socket.emit('upload', chunkNames, chunkBuffers, (err1) => {
+    socket.emit('upload', numChunks, chunkNames, chunkBuffers, (err1) => {
         //handle err
         console.log("Upload successful")
     })
@@ -75,7 +75,7 @@ const main = async () => {
     
     server.on("connection", async (socket) => {
         console.log(`Peer connected [id=${socket.id}]`);
-        sendChunksToPeer(socket, chunkHelper)
+        sendChunksToPeer(socket, numChunks, chunkHelper)
     })    
 
 }
